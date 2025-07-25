@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var isShowingDarknessValueOutOfBoundsAlert = false
     @State private var isEditingAmbientLightLevelManually = false
     @State private var editingAmbientLightManuallyTextFieldStore = ""
+    @State private var showFromTimePicker = false
+    @State private var showToTimePicker = false
     
     private func formatTime(date: Date) -> String {
         let formatter = DateFormatter()
@@ -119,61 +121,117 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundColor(Color(NSColor.secondaryLabelColor))
                         
-                        // Time range display
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("From:")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                                Text(formatTime(date: settings.timeOverrideStart))
-                                    .font(.system(size: 16, weight: .medium).monospacedDigit())
-                                    .foregroundColor(.primary)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "arrow.right")
-                                .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                                .font(.system(size: 12))
-                            
-                            Spacer()
-                            
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text("To:")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(NSColor.tertiaryLabelColor))
-                                Text(formatTime(date: settings.timeOverrideEnd))
-                                    .font(.system(size: 16, weight: .medium).monospacedDigit())
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        .padding()
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        
-                        // Time pickers
-                        VStack(alignment: .leading, spacing: 12) {
-                            DatePicker("Start Time:", selection: $settings.timeOverrideStart, displayedComponents: [.hourAndMinute])
-                                .datePickerStyle(.stepperField)
-                            
-                            DatePicker("End Time:", selection: $settings.timeOverrideEnd, displayedComponents: [.hourAndMinute])
-                                .datePickerStyle(.stepperField)
-                        }
-                        
-                        // Status indicator
-                        if settings.isCurrentlyInTimeBasedOverride {
+                        // Time range display - Fixed height container to prevent movement
+                        VStack(spacing: 12) {
                             HStack {
-                                Image(systemName: "clock.fill")
-                                    .foregroundColor(.orange)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("From:")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                    
+                                    Button(action: {
+                                        showFromTimePicker = true
+                                    }) {
+                                        Text(formatTime(date: settings.timeOverrideStart))
+                                            .font(.system(size: 16, weight: .medium).monospacedDigit())
+                                            .foregroundColor(.primary)
+                                            .frame(minWidth: 80, alignment: .leading)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $showFromTimePicker, arrowEdge: .bottom) {
+                                        VStack(spacing: 16) {
+                                            Text("Select Start Time")
+                                                .font(.headline)
+                                            
+                                            DatePicker("Time", selection: $settings.timeOverrideStart, displayedComponents: .hourAndMinute)
+                                                .datePickerStyle(.compact)
+                                                .labelsHidden()
+                                            
+                                            Button("Done") {
+                                                showFromTimePicker = false
+                                            }
+                                            .keyboardShortcut(.defaultAction)
+                                        }
+                                        .padding()
+                                        .frame(minWidth: 200)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "arrow.right")
+                                    .foregroundColor(Color(NSColor.tertiaryLabelColor))
                                     .font(.system(size: 12))
-                                Text("Auto mode is currently disabled")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.orange)
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("To:")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                    
+                                    Button(action: {
+                                        showToTimePicker = true
+                                    }) {
+                                        Text(formatTime(date: settings.timeOverrideEnd))
+                                            .font(.system(size: 16, weight: .medium).monospacedDigit())
+                                            .foregroundColor(.primary)
+                                            .frame(minWidth: 80, alignment: .trailing)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .popover(isPresented: $showToTimePicker, arrowEdge: .bottom) {
+                                        VStack(spacing: 16) {
+                                            Text("Select End Time")
+                                                .font(.headline)
+                                            
+                                            DatePicker("Time", selection: $settings.timeOverrideEnd, displayedComponents: .hourAndMinute)
+                                                .datePickerStyle(.compact)
+                                                .labelsHidden()
+                                            
+                                            Button("Done") {
+                                                showToTimePicker = false
+                                            }
+                                            .keyboardShortcut(.defaultAction)
+                                        }
+                                        .padding()
+                                        .frame(minWidth: 200)
+                                    }
+                                }
                             }
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 8)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(6)
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+                            
+                            // Fixed height status indicator container to prevent layout shifts
+                            VStack {
+                                if settings.isCurrentlyInTimeBasedOverride {
+                                    HStack {
+                                        Image(systemName: "clock.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.system(size: 12))
+                                        Text("Auto mode is currently disabled")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.orange)
+                                    }
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(6)
+                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                } else {
+                                    // Invisible placeholder to maintain consistent height
+                                    HStack {
+                                        Image(systemName: "clock.fill")
+                                            .font(.system(size: 12))
+                                        Text("Auto mode is currently disabled")
+                                            .font(.system(size: 12))
+                                    }
+                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, 8)
+                                    .opacity(0)
+                                }
+                            }
+                            .animation(.easeInOut(duration: 0.2), value: settings.isCurrentlyInTimeBasedOverride)
                         }
                     }
                     .padding(.leading, 20)
