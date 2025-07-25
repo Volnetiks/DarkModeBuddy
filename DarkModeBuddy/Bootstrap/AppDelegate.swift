@@ -14,6 +14,8 @@ import Sparkle
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     var window: NSWindow!
+    private var statusItem: NSStatusItem!
+    private var statusUpdateTimer: Timer?
     
     let settings = DMBSettings()
 
@@ -32,6 +34,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // Start as accessory app (status bar only)
+        NSApp.setActivationPolicy(.accessory)
+        
+        setupStatusBar()
+        
         if shouldShowUI {
             settings.hasLaunchedAppBefore = true
             showSettingsWindow(nil)
@@ -48,6 +55,74 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private lazy var sensorReader = DMBAmbientLightSensorReader(frequency: .realtime)
+    
+    private func setupStatusBar() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: "lightbulb", accessibilityDescription: "DarkModeBuddy")
+            button.image?.isTemplate = true
+        }
+        
+        setupStatusBarMenu()
+    }
+    
+    private func setupStatusBarMenu() {
+        let menu = NSMenu()
+        
+        // Current ambient light level
+        let lightLevelItem = NSMenuItem(title: "Ambient Light: --", action: nil, keyEquivalent: "")
+        lightLevelItem.tag = 100 // Tag for easy identification when updating
+        menu.addItem(lightLevelItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Auto mode toggle
+        let autoModeItem = NSMenuItem(title: "Enable Auto Mode", action: #selector(toggleAutoMode(_:)), keyEquivalent: "")
+        autoModeItem.tag = 101 // Tag for easy identification when updating
+        menu.addItem(autoModeItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Settings option
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettingsWindow(_:)), keyEquivalent: "s"))
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // Quit option
+        menu.addItem(NSMenuItem(title: "Quit DarkModeBuddy", action: #selector(terminate(_:)), keyEquivalent: "q"))
+        
+        statusItem.menu = menu
+        
+        // Update menu items periodically
+        updateStatusBarMenu()
+        statusUpdateTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.updateStatusBarMenu()
+        }
+    }
+    
+    private func updateStatusBarMenu() {
+        guard let menu = statusItem.menu else { return }
+        
+        // Update ambient light level
+        if let lightLevelItem = menu.item(withTag: 100) {
+            let lightLevel = sensorReader.ambientLightValue
+            let formattedLevel = NumberFormatter.noFractionDigits.string(from: NSNumber(value: lightLevel)) ?? "--"
+            lightLevelItem.title = "Ambient Light: \(formattedLevel)"
+        }
+        
+        // Update auto mode toggle
+        if let autoModeItem = menu.item(withTag: 101) {
+            let isEnabled = settings.isChangeSystemAppearanceBasedOnAmbientLightEnabled
+            autoModeItem.title = isEnabled ? "Disable Auto Mode" : "Enable Auto Mode"
+            autoModeItem.state = isEnabled ? .on : .off
+        }
+    }
+    
+    @objc private func toggleAutoMode(_ sender: NSMenuItem) {
+        settings.isChangeSystemAppearanceBasedOnAmbientLightEnabled = !settings.isChangeSystemAppearanceBasedOnAmbientLightEnabled
+        updateStatusBarMenu()
+    }
 
     @IBAction func showSettingsWindow(_ sender: Any?) {
         NSApp.setActivationPolicy(.regular)
@@ -120,23 +195,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let alert = NSAlert()
         alert.messageText = "Quit DarkModeBuddy?"
-        alert.informativeText = "If you quit DarkModeBuddy, it won't be able to monitor your ambient light level and change the system theme automatically. Would you like to hide DarkModeBuddy instead?"
-        alert.addButton(withTitle: "Hide DarkModeBuddy")
+        alert.informativeText = "If you quit DarkModeBuddy, it won't be able to monitor your ambient light level and change the system theme automatically."
         alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
 
         let result = alert.runModal()
 
-        if result == .alertSecondButtonReturn {
+        if result == .alertFirstButtonReturn {
             return .terminateNow
         } else {
-            window?.close()
-            
             return .terminateCancel
         }
     }
     
     @objc func receivedShutdownNotification(_ note: Notification) {
         shouldSkipTerminationConfirmation = true
+    }
+    
+    func applicationWillTerminate(_ notification: Notification) {
+        // Clean up resources
+        statusUpdateTimer?.invalidate()
+        statusUpdateTimer = nil
+        sensorReader.invalidate()
+        if let statusItem = statusItem {
+            NSStatusBar.system.removeStatusItem(statusItem)
+        }
     }
 
 }
