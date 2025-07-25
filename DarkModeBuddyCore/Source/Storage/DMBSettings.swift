@@ -19,6 +19,9 @@ public final class DMBSettings: ObservableObject {
         static let disableAppearanceChangeInClamshellMode = "disableAppearanceChangeInClamshellMode"
         static let enableImmediateChangeOnComputerWake = "enableImmediateChangeOnComputerWake"
         static let extraThresholdBeforeRevertingToLightMode = "extraThresholdBeforeRevertingToLightMode"
+        static let isTimeBasedOverrideEnabled = "isTimeBasedOverrideEnabled"
+        static let timeOverrideStart = "timeOverrideStart"
+        static let timeOverrideEnd = "timeOverrideEnd"
         
         static let defaultDarknessThreshold: Double = {
             DMBAmbientLightSensor.hardwareUsesLegacySensor() ? 20.0 : 52.0
@@ -33,6 +36,14 @@ public final class DMBSettings: ObservableObject {
         }()
 
         static let defaultDarknessThresholdIntervalInSeconds = 60.0
+        
+        static let defaultTimeOverrideStart: Date = {
+            Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date()
+        }()
+        
+        static let defaultTimeOverrideEnd: Date = {
+            Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
+        }()
     }
     
     private let defaults: UserDefaults
@@ -50,7 +61,10 @@ public final class DMBSettings: ObservableObject {
             Keys.ambientLightSmoothingConstant: Keys.defaultAmbientLightSmoothingConstant,
             Keys.disableAppearanceChangeInClamshellMode: true,
             Keys.enableImmediateChangeOnComputerWake: true,
-            Keys.extraThresholdBeforeRevertingToLightMode: Keys.defaultExtraThresholdBeforeRevertingToLightMode
+            Keys.extraThresholdBeforeRevertingToLightMode: Keys.defaultExtraThresholdBeforeRevertingToLightMode,
+            Keys.isTimeBasedOverrideEnabled: false,
+            Keys.timeOverrideStart: Keys.defaultTimeOverrideStart,
+            Keys.timeOverrideEnd: Keys.defaultTimeOverrideEnd
         ])
         
         self.isChangeSystemAppearanceBasedOnAmbientLightEnabled = defaults.bool(forKey: Keys.isChangeSystemAppearanceBasedOnAmbientLightEnabled)
@@ -59,6 +73,10 @@ public final class DMBSettings: ObservableObject {
         self.darknessThresholdIntervalInSeconds = defaults.optionalDoubleValue(forKey: Keys.darknessThresholdIntervalInSeconds) ?? Keys.defaultDarknessThresholdIntervalInSeconds
         self.ambientLightSmoothingConstant = defaults.optionalDoubleValue(forKey: Keys.ambientLightSmoothingConstant) ?? Keys.defaultAmbientLightSmoothingConstant
         self.extraThresholdBeforeRevertingToLightMode = defaults.optionalDoubleValue(forKey: Keys.extraThresholdBeforeRevertingToLightMode) ?? Keys.defaultExtraThresholdBeforeRevertingToLightMode
+        
+        self.isTimeBasedOverrideEnabled = defaults.bool(forKey: Keys.isTimeBasedOverrideEnabled)
+        self.timeOverrideStart = defaults.object(forKey: Keys.timeOverrideStart) as? Date ?? Keys.defaultTimeOverrideStart
+        self.timeOverrideEnd = defaults.object(forKey: Keys.timeOverrideEnd) as? Date ?? Keys.defaultTimeOverrideEnd
         
         if isPreviewing {
             self.isLaunchAtLoginEnabled = false
@@ -165,6 +183,52 @@ public final class DMBSettings: ObservableObject {
             } else {
                 SharedFileList.sessionLoginItems().removeItem(Self.appURL)
             }
+        }
+    }
+    
+    // MARK: - Time-based override settings
+    
+    @Published public var isTimeBasedOverrideEnabled: Bool {
+        didSet {
+            defaults.set(isTimeBasedOverrideEnabled, forKey: Keys.isTimeBasedOverrideEnabled)
+        }
+    }
+    
+    @Published public var timeOverrideStart: Date {
+        didSet {
+            defaults.set(timeOverrideStart, forKey: Keys.timeOverrideStart)
+        }
+    }
+    
+    @Published public var timeOverrideEnd: Date {
+        didSet {
+            defaults.set(timeOverrideEnd, forKey: Keys.timeOverrideEnd)
+        }
+    }
+    
+    public var isCurrentlyInTimeBasedOverride: Bool {
+        guard isTimeBasedOverrideEnabled else { return false }
+        
+        let now = Date()
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: now)
+        let currentMinute = calendar.component(.minute, from: now)
+        
+        let startHour = calendar.component(.hour, from: timeOverrideStart)
+        let startMinute = calendar.component(.minute, from: timeOverrideStart)
+        let endHour = calendar.component(.hour, from: timeOverrideEnd)
+        let endMinute = calendar.component(.minute, from: timeOverrideEnd)
+        
+        let currentTimeInMinutes = currentHour * 60 + currentMinute
+        let startTimeInMinutes = startHour * 60 + startMinute
+        let endTimeInMinutes = endHour * 60 + endMinute
+        
+        if startTimeInMinutes <= endTimeInMinutes {
+            // Same day range (e.g., 9:00 AM to 5:00 PM)
+            return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes < endTimeInMinutes
+        } else {
+            // Overnight range (e.g., 10:00 PM to 6:00 AM)
+            return currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes < endTimeInMinutes
         }
     }
     

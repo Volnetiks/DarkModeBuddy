@@ -128,7 +128,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 385, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 385, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered, defer: false)
         window.center()

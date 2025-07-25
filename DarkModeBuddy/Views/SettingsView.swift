@@ -18,6 +18,12 @@ struct SettingsView: View {
     @State private var isEditingAmbientLightLevelManually = false
     @State private var editingAmbientLightManuallyTextFieldStore = ""
     
+    private func formatTime(date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
     var body: some View {
         Group {
             if reader.isSensorReady {
@@ -100,10 +106,84 @@ struct SettingsView: View {
             }
             .disabled(!settings.isChangeSystemAppearanceBasedOnAmbientLightEnabled)
             
+            // Time-based override section
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle(
+                    "Disable Auto Mode During Specific Hours",
+                    isOn: $settings.isTimeBasedOverrideEnabled
+                )
+                
+                if settings.isTimeBasedOverrideEnabled {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Disable automatic switching during:")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(NSColor.secondaryLabelColor))
+                        
+                        // Time range display
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("From:")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                Text(formatTime(date: settings.timeOverrideStart))
+                                    .font(.system(size: 16, weight: .medium).monospacedDigit())
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "arrow.right")
+                                .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                .font(.system(size: 12))
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("To:")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                Text(formatTime(date: settings.timeOverrideEnd))
+                                    .font(.system(size: 16, weight: .medium).monospacedDigit())
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                        
+                        // Time pickers
+                        VStack(alignment: .leading, spacing: 12) {
+                            DatePicker("Start Time:", selection: $settings.timeOverrideStart, displayedComponents: [.hourAndMinute])
+                                .datePickerStyle(.stepperField)
+                            
+                            DatePicker("End Time:", selection: $settings.timeOverrideEnd, displayedComponents: [.hourAndMinute])
+                                .datePickerStyle(.stepperField)
+                        }
+                        
+                        // Status indicator
+                        if settings.isCurrentlyInTimeBasedOverride {
+                            HStack {
+                                Image(systemName: "clock.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 12))
+                                Text("Auto mode is currently disabled")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                    }
+                    .padding(.leading, 20)
+                }
+            }
+            .disabled(!settings.isChangeSystemAppearanceBasedOnAmbientLightEnabled)
+            
             Text(settings.currentSettingsDescription)
                 .font(.system(size: 11))
                 .foregroundColor(Color(NSColor.tertiaryLabelColor))
-//                .multilineTextAlignment(.center)
                 .lineLimit(nil)
         }
     }
@@ -142,14 +222,32 @@ extension DMBSettings {
             return "Dark Mode will not be enabled automatically based on ambient light."
         }
         
-        return "Dark Mode will be enabled when the ambient light stays below \(darknessThreshold.formattedNoFractionDigits) for over \(darknessThresholdIntervalInSeconds.formattedLongTime)."
+        var description = "Dark Mode will be enabled when the ambient light stays below \(darknessThreshold.formattedNoFractionDigits) for over \(darknessThresholdIntervalInSeconds.formattedLongTime)."
+        
+        if isTimeBasedOverrideEnabled {
+            let startTime = formatTimeForDescription(date: timeOverrideStart)
+            let endTime = formatTimeForDescription(date: timeOverrideEnd)
+            description += " Automatic switching is disabled from \(startTime) to \(endTime)."
+            
+            if isCurrentlyInTimeBasedOverride {
+                description += " Currently in override period."
+            }
+        }
+        
+        return description
+    }
+    
+    private func formatTimeForDescription(date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView()
-            .frame(maxWidth: 385)
+            .frame(maxWidth: 385, maxHeight: 600)
             .environmentObject(DMBAmbientLightSensorReader(frequency: .realtime))
             .environmentObject(DMBSettings(forPreview: true))
             .previewLayout(.sizeThatFits)

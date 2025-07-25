@@ -70,6 +70,12 @@ public final class DMBSystemAppearanceSwitcher: ObservableObject {
     private func attemptAppearanceChangeOnWake() {
         guard settings.isImmediateChangeOnComputerWakeEnabled else { return }
         
+        // Check if we're in a time-based override period
+        guard !settings.isCurrentlyInTimeBasedOverride else {
+            os_log("Skipping wake appearance change due to time-based override", log: self.log, type: .debug)
+            return
+        }
+        
         reader.update()
         
         os_log("%{public}@ %.2f", log: log, type: .debug, #function, reader.ambientLightValue)
@@ -117,6 +123,12 @@ public final class DMBSystemAppearanceSwitcher: ObservableObject {
         #endif
         
         guard value != -1 else { return }
+        
+        // Check if we're in a time-based override period
+        guard !settings.isCurrentlyInTimeBasedOverride else {
+            os_log("Skipping appearance change due to time-based override", log: self.log, type: .debug)
+            return
+        }
         
         let newAppearance: Appearance
         
